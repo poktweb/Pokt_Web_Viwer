@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Viewer System</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🖥️ Remote Viewer System</h1>
+            <p>Sistema de visualização remota em tempo real</p>
+        </header>
+
+        <main>
+            <!-- Tela de conexão -->
+            <div id="connection-screen" class="screen active">
+                <div class="connection-options">
+                    <h2>Escolha o modo de conexão</h2>
+                    
+                    <div class="option-card" onclick="showClientMode()">
+                        <div class="option-icon">🖥️</div>
+                        <h3>Modo Cliente</h3>
+                        <p>Compartilhe sua tela para visualização remota</p>
+                    </div>
+                    
+                    <div class="option-card" onclick="showViewerMode()">
+                        <div class="option-icon">👁️</div>
+                        <h3>Modo Viewer</h3>
+                        <p>Visualize telas remotas de outros clientes</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modo Cliente -->
+            <div id="client-screen" class="screen">
+                <div class="client-header">
+                    <button class="back-btn" onclick="showConnectionScreen()">← Voltar</button>
+                    <h2>Modo Cliente</h2>
+                    <div class="connection-status" id="client-status">Desconectado</div>
+                </div>
+
+                <div class="client-content">
+                    <div class="connection-form">
+                        <input type="text" id="client-name" placeholder="Nome do cliente" value="Cliente-001">
+                        <input type="text" id="server-url" placeholder="URL do servidor" value="http://localhost:3000">
+                        <button id="connect-client-btn" onclick="connectAsClient()">Conectar</button>
+                    </div>
+
+                    <div class="stream-controls" id="stream-controls" style="display: none;">
+                        <div class="quality-controls">
+                            <label>Qualidade:</label>
+                            <select id="quality-select">
+                                <option value="high">Alta</option>
+                                <option value="medium" selected>Média</option>
+                                <option value="low">Baixa</option>
+                            </select>
+                        </div>
+                        
+                        <div class="fps-controls">
+                            <label>FPS:</label>
+                            <select id="fps-select">
+                                <option value="30" selected>30</option>
+                                <option value="15">15</option>
+                                <option value="10">10</option>
+                                <option value="5">5</option>
+                            </select>
+                        </div>
+                        
+                        <button id="start-stream-btn" onclick="startScreenStream()">Iniciar Stream</button>
+                        <button id="stop-stream-btn" onclick="stopScreenStream()" style="display: none;">Parar Stream</button>
+                    </div>
+
+                    <div class="stream-info" id="stream-info" style="display: none;">
+                        <h3>Informações do Stream</h3>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <span>Status:</span>
+                                <span id="stream-status">Parado</span>
+                            </div>
+                            <div class="info-item">
+                                <span>FPS Atual:</span>
+                                <span id="current-fps">0</span>
+                            </div>
+                            <div class="info-item">
+                                <span>Qualidade:</span>
+                                <span id="current-quality">Média</span>
+                            </div>
+                            <div class="info-item">
+                                <span>Viewers:</span>
+                                <span id="viewer-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modo Viewer -->
+            <div id="viewer-screen" class="screen">
+                <div class="viewer-header">
+                    <button class="back-btn" onclick="showConnectionScreen()">← Voltar</button>
+                    <h2>Modo Viewer</h2>
+                    <div class="connection-status" id="viewer-status">Desconectado</div>
+                </div>
+
+                <div class="viewer-content">
+                    <div class="connection-form">
+                        <input type="text" id="viewer-name" placeholder="Nome do viewer" value="Viewer-001">
+                        <input type="text" id="viewer-server-url" placeholder="URL do servidor" value="http://localhost:3000">
+                        <button id="connect-viewer-btn" onclick="connectAsViewer()">Conectar</button>
+                    </div>
+
+                    <div class="client-list" id="client-list" style="display: none;">
+                        <h3>Clientes Disponíveis</h3>
+                        <div id="clients-container"></div>
+                    </div>
+
+                    <div class="screen-display" id="screen-display" style="display: none;">
+                        <div class="display-header">
+                            <h3>Visualizando: <span id="current-client-name">-</span></h3>
+                            <button onclick="disconnectFromClient()">Desconectar</button>
+                        </div>
+                        <div class="screen-container">
+                            <canvas id="screen-canvas"></canvas>
+                        </div>
+                        <div class="display-controls">
+                            <button onclick="takeScreenshot()">📸 Capturar</button>
+                            <button onclick="toggleFullscreen()">⛶ Tela Cheia</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2024 Remote Viewer System</p>
+        </footer>
+    </div>
+
+    <script src="client.js"></script>
+    <script src="viewer.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

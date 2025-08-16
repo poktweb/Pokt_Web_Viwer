@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Viewer Client</title>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        input, select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            background: #218838;
+        }
+        
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: 500;
+        }
+        
+        .status.connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status.disconnected {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .info {
+            background: #e9ecef;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .info-item span:first-child {
+            font-weight: 500;
+            color: #555;
+        }
+        
+        .info-item span:last-child {
+            color: #333;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🖥️ Remote Viewer Client</h1>
+        
+        <!-- Status da conexão -->
+        <div id="connection-status" class="status disconnected">
+            Desconectado do servidor
+        </div>
+        
+        <!-- Formulário de conexão -->
+        <div class="form-group">
+            <label for="server-url">URL do Servidor (Vercel):</label>
+            <input type="url" id="server-url" placeholder="https://seu-servidor.vercel.app" 
+                   value="https://seu-servidor.vercel.app">
+        </div>
+        
+        <div class="form-group">
+            <label for="client-name">Nome do Cliente:</label>
+            <input type="text" id="client-name" placeholder="Cliente-001" value="Cliente-001">
+        </div>
+        
+        <button id="connect-btn" onclick="connectToServer()">Conectar ao Servidor</button>
+        <button id="disconnect-btn" onclick="disconnectFromServer()" disabled>Desconectar</button>
+        
+        <!-- Controles do stream -->
+        <div id="stream-controls" class="controls" style="display: none;">
+            <h3>Controles do Stream</h3>
+            
+            <div class="form-group">
+                <label for="quality-select">Qualidade:</label>
+                <select id="quality-select">
+                    <option value="high">Alta (90%)</option>
+                    <option value="medium" selected>Média (70%)</option>
+                    <option value="low">Baixa (50%)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="fps-select">FPS:</label>
+                <select id="fps-select">
+                    <option value="30">30 FPS</option>
+                    <option value="15" selected>15 FPS</option>
+                    <option value="10">10 FPS</option>
+                    <option value="5">5 FPS</option>
+                </select>
+            </div>
+            
+            <button id="start-stream-btn" onclick="startScreenStream()">Iniciar Stream</button>
+            <button id="stop-stream-btn" onclick="stopScreenStream()" style="display: none;">Parar Stream</button>
+        </div>
+        
+        <!-- Informações do stream -->
+        <div id="stream-info" class="info" style="display: none;">
+            <h3>Informações do Stream</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <span>Status:</span>
+                    <span id="stream-status">Parado</span>
+                </div>
+                <div class="info-item">
+                    <span>FPS Atual:</span>
+                    <span id="current-fps">0</span>
+                </div>
+                <div class="info-item">
+                    <span>Qualidade:</span>
+                    <span id="current-quality">Média</span>
+                </div>
+                <div class="info-item">
+                    <span>Última Atualização:</span>
+                    <span id="last-update">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Log de eventos -->
+        <div class="info">
+            <h3>Log de Eventos</h3>
+            <div id="event-log" style="max-height: 200px; overflow-y: auto; background: white; padding: 15px; border-radius: 5px;">
+                <p>Cliente iniciado. Aguardando conexão...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variáveis globais
+        let socket = null;
+        let isConnected = false;
+        let isStreaming = false;
+        let streamInterval = null;
+        let clientId = null;
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
+        
+        // Funções de utilidade
+        function logEvent(message, type = 'info') {
+            const log = document.getElementById('event-log');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            const logEntry = document.createElement('p');
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            logEntry.style.color = type === 'error' ? '#dc3545' : type === 'success' ? '#28a745' : '#333';
+            log.insertBefore(logEntry, log.firstChild);
+            
+            // Limitar log a 50 entradas
+            while (log.children.length > 50) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification`;
+            notification.textContent = message;
+            
+            switch(type) {
+                case 'success': notification.style.background = '#28a745'; break;
+                case 'error': notification.style.background = '#dc3545'; break;
+                case 'warning': notification.style.background = '#ffc107'; notification.style.color = '#333'; break;
+                default: notification.style.background = '#17a2b8';
+            }
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+        
+        function updateConnectionStatus(status, isConnected = false) {
+            const statusElement = document.getElementById('connection-status');
+            statusElement.textContent = status;
+            statusElement.className = `status ${isConnected ? 'connected' : 'disconnected'}`;
+        }
+        
+        // Funções de conexão
+        async function connectToServer() {
+            const serverUrl = document.getElementById('server-url').value.trim();
+            const clientName = document.getElementById('client-name').value.trim();
+            
+            if (!serverUrl || !clientName) {
+                showNotification('Por favor, preencha todos os campos', 'error');
+                return;
+            }
+            
+            try {
+                logEvent('Conectando ao servidor...', 'info');
+                
+                // Verificar se o servidor está online
+                const response = await fetch(`${serverUrl}/api/health`);
+                if (!response.ok) {
+                    throw new Error('Servidor não respondeu');
+                }
+                
+                // Conectar via Socket.IO
+                socket = io(serverUrl, {
+                    transports: ['websocket', 'polling'],
+                    timeout: 10000
+                });
+                
+                setupSocketEvents();
+                
+                // Aguardar conexão
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Timeout na conexão'));
+                    }, 10000);
+                    
+                    socket.on('connect', () => {
+                        clearTimeout(timeout);
+                        resolve();
+                    });
+                    
+                    socket.on('connect_error', (error) => {
+                        clearTimeout(timeout);
+                        reject(error);
+                    });
+                });
+                
+                // Enviar identificação do cliente
+                clientId = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                socket.emit('client-connect', {
+                    clientId: clientId,
+                    clientName: clientName
+                });
+                
+                logEvent('Conectado ao servidor com sucesso!', 'success');
+                showNotification('Conectado ao servidor!', 'success');
+                
+            } catch (error) {
+                logEvent(`Erro na conexão: ${error.message}`, 'error');
+                showNotification(`Erro na conexão: ${error.message}`, 'error');
+                updateConnectionStatus('Erro na conexão', false);
+            }
+        }
+        
+        function setupSocketEvents() {
+            socket.on('client-connected', (data) => {
+                isConnected = true;
+                updateConnectionStatus(`Conectado como ${data.clientName}`, true);
+                document.getElementById('connect-btn').disabled = true;
+                document.getElementById('disconnect-btn').disabled = false;
+                document.getElementById('stream-controls').style.display = 'block';
+                document.getElementById('stream-info').style.display = 'block';
+                
+                logEvent(`Conectado como cliente: ${data.clientName}`, 'success');
+            });
+            
+            socket.on('connection-error', (data) => {
+                logEvent(`Erro de conexão: ${data.message}`, 'error');
+                showNotification(data.message, 'error');
+            });
+            
+            socket.on('stream-received', (data) => {
+                logEvent(`Stream enviado: ${data.message}`, 'success');
+                document.getElementById('last-update').textContent = new Date(data.timestamp).toLocaleTimeString('pt-BR');
+            });
+            
+            socket.on('stream-error', (data) => {
+                logEvent(`Erro no stream: ${data.message}`, 'error');
+                showNotification(data.message, 'error');
+            });
+            
+            socket.on('disconnect', () => {
+                handleDisconnection();
+            });
+        }
+        
+        function handleDisconnection() {
+            isConnected = false;
+            isStreaming = false;
+            
+            if (streamInterval) {
+                clearInterval(streamInterval);
+                streamInterval = null;
+            }
+            
+            updateConnectionStatus('Desconectado do servidor', false);
+            document.getElementById('connect-btn').disabled = false;
+            document.getElementById('disconnect-btn').disabled = true;
+            document.getElementById('stream-controls').style.display = 'none';
+            document.getElementById('stream-info').style.display = 'none';
+            
+            logEvent('Desconectado do servidor', 'warning');
+            showNotification('Desconectado do servidor', 'warning');
+        }
+        
+        function disconnectFromServer() {
+            if (socket) {
+                socket.disconnect();
+            }
+            handleDisconnection();
+        }
+        
+        // Funções do stream
+        async function startScreenStream() {
+            if (!socket || !isConnected) {
+                showNotification('Não conectado ao servidor', 'error');
+                return;
+            }
+            
+            try {
+                // Verificar se o navegador suporta captura de tela
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                    showNotification('Seu navegador não suporta captura de tela', 'error');
+                    return;
+                }
+                
+                // Solicitar permissão para capturar tela
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        mediaSource: 'screen',
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    }
+                });
+                
+                isStreaming = true;
+                frameCount = 0;
+                lastFrameTime = Date.now();
+                
+                // Atualizar interface
+                document.getElementById('start-stream-btn').style.display = 'none';
+                document.getElementById('stop-stream-btn').style.display = 'inline-block';
+                document.getElementById('stream-status').textContent = 'Ativo';
+                
+                // Iniciar captura de frames
+                startFrameCapture(stream);
+                
+                logEvent('Stream iniciado com sucesso!', 'success');
+                showNotification('Stream iniciado!', 'success');
+                
+            } catch (error) {
+                logEvent(`Erro ao iniciar stream: ${error.message}`, 'error');
+                if (error.name === 'NotAllowedError') {
+                    showNotification('Permissão de captura de tela negada', 'error');
+                } else {
+                    showNotification(`Erro ao iniciar stream: ${error.message}`, 'error');
+                }
+            }
+        }
+        
+        function startFrameCapture(stream) {
+            const videoTrack = stream.getVideoTracks()[0];
+            const imageCapture = new ImageCapture(videoTrack);
+            
+            const captureFrame = async () => {
+                if (!isStreaming) return;
+                
+                try {
+                    const bitmap = await imageCapture.grabFrame();
+                    
+                    // Converter para canvas e comprimir
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    canvas.width = bitmap.width;
+                    canvas.height = bitmap.height;
+                    ctx.drawImage(bitmap, 0, 0);
+                    
+                    // Comprimir baseado na qualidade selecionada
+                    const quality = getQualityValue();
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                    
+                    // Enviar frame para o servidor
+                    socket.emit('screen-stream', {
+                        clientId: clientId,
+                        imageData: dataUrl,
+                        timestamp: Date.now(),
+                        quality: document.getElementById('quality-select').value
+                    });
+                    
+                    // Atualizar estatísticas
+                    frameCount++;
+                    const now = Date.now();
+                    const elapsed = now - lastFrameTime;
+                    
+                    if (elapsed >= 1000) { // Atualizar FPS a cada segundo
+                        const currentFPS = Math.round((frameCount * 1000) / elapsed);
+                        document.getElementById('current-fps').textContent = currentFPS;
+                        frameCount = 0;
+                        lastFrameTime = now;
+                    }
+                    
+                } catch (error) {
+                    logEvent(`Erro ao capturar frame: ${error.message}`, 'error');
+                }
+            };
+            
+            // Configurar intervalo baseado no FPS selecionado
+            const fps = parseInt(document.getElementById('fps-select').value);
+            const interval = 1000 / fps;
+            streamInterval = setInterval(captureFrame, interval);
+            
+            // Capturar primeiro frame imediatamente
+            captureFrame();
+        }
+        
+        function getQualityValue() {
+            const quality = document.getElementById('quality-select').value;
+            switch (quality) {
+                case 'high': return 0.9;
+                case 'medium': return 0.7;
+                case 'low': return 0.5;
+                default: return 0.7;
+            }
+        }
+        
+        function stopScreenStream() {
+            isStreaming = false;
+            
+            if (streamInterval) {
+                clearInterval(streamInterval);
+                streamInterval = null;
+            }
+            
+            // Atualizar interface
+            document.getElementById('start-stream-btn').style.display = 'inline-block';
+            document.getElementById('stop-stream-btn').style.display = 'none';
+            document.getElementById('stream-status').textContent = 'Parado';
+            document.getElementById('current-fps').textContent = '0';
+            
+            logEvent('Stream parado', 'info');
+            showNotification('Stream parado', 'info');
+        }
+        
+        // Event listeners para mudanças de configuração
+        document.getElementById('quality-select').addEventListener('change', function() {
+            document.getElementById('current-quality').textContent = this.value;
+        });
+        
+        document.getElementById('fps-select').addEventListener('change', function() {
+            if (isStreaming) {
+                stopScreenStream();
+                setTimeout(() => {
+                    startScreenStream();
+                }, 100);
+            }
+        });
+        
+        // Limpeza ao sair da página
+        window.addEventListener('beforeunload', () => {
+            if (socket) {
+                socket.disconnect();
+            }
+        });
+        
+        // Inicialização
+        logEvent('Cliente Remote Viewer iniciado', 'info');
+        logEvent('Configure a URL do servidor e conecte-se', 'info');
+    </script>
+</body>
+</html>

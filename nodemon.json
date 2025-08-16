@@ -1,0 +1,10 @@
+{
+  "watch": ["server/", "client/"],
+  "ext": "js,json,html,css",
+  "ignore": ["node_modules/", "*.log", "build-status.json"],
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "exec": "node server/index.js",
+  "delay": "1000"
+}
